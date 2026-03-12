@@ -1,0 +1,13 @@
+time,heart_rate,fatigue,sleep_quality,event
+0,72,0.3,0.9,None
+1,75,0.35,0.88,None
+2,78,0.40,0.85,None
+3,82,0.55,0.70,Motion Sickness
+4,85,0.65,0.60,Motion Sickness
+5,80,0.50,0.75,None
+6,76,0.45,0.80,None
+7,74,0.40,0.82,None
+8,73,0.38,0.85,None
+9,75,0.42,0.80,Sleep Disruption
+10,78,0.55,0.60,Sleep Disruption
+11,77,0.50,0.70,None
