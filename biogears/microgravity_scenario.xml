@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scenario xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+  <!-- Load standard patient -->
+  <PatientFile>StandardMale.xml</PatientFile>
+
+  <!-- Total simulation time -->
+  <EngineStateFile></EngineStateFile>
+
+  <!-- Initial conditions -->
+  <InitialParameters>
+    <TimeStep unit="s">1</TimeStep>
+  </InitialParameters>
+
+  <!-- Actions -->
+  <Actions>
+
+    <!-- Floating baseline (microgravity) -->
+    <Action xsi:type="ExerciseData">
+      <Intensity value="0.02"/>
+    </Action>
+
+    <!-- Advance time to 24 hours -->
+    <Action xsi:type="AdvanceTime">
+      <Time unit="hr">24</Time>
+    </Action>
+
+    <!-- EVA exertion spike -->
+    <Action xsi:type="ExerciseData">
+      <Intensity value="0.65"/>
+    </Action>
+
+    <!-- EVA duration -->
+    <Action xsi:type="AdvanceTime">
+      <Time unit="hr">2</Time>
+    </Action>
+
+    <!-- Back to floating -->
+    <Action xsi:type="ExerciseData">
+      <Intensity value="0.02"/>
+    </Action>
+
+    <!-- Continue simulation -->
+    <Action xsi:type="AdvanceTime">
+      <Time unit="hr">46</Time>
+    </Action>
+
+  </Actions>
+
+</Scenario>
