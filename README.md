@@ -1,8 +1,13 @@
-# Digital-twin
+# Astronaut Health Digital Twin
 
-End goal: To make a data-driven simulation of a human heart using tools such as BioGears and VascularSim(OpenSim).
+This project simulates astronaut health using:
+- Synthetic probabilistic modelling
+- Discrete-event simulation
+- BioGears physiological engine
+- Analytics and visualization
 
-## Team members:
-- [Vishruth Rallapalli](https://github.com/Vishy-55)
-- [Vishwambhara R Hebbalalu](https://github.com/vishwambharaRH)
-- [Vrishank N Amembal](https://github.com/vrishank-na) - The owner of this repo
+Structure:
+- /biogears → BioGears integration
+- /simulation → event + synthetic data
+- /analytics → metrics
+- /data → shared outputs
