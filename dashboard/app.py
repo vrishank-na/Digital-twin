@@ -549,7 +549,7 @@ def create_kpi_cards(summary, twin_sync):
         },
         {
             "label": "Fatigue Risk",
-            "value": f"{(risk_value if risk_value is not None else summary['fatigue_risk']):.0f}%",
+            "value": f"{((risk_value * 100) if risk_value is not None else summary['fatigue_risk']):.0f}%",
             "note": "From analytics_summary.json" if risk_value is not None else summary["fatigue_direction"].title(),
             "tone": "amber",
         },
@@ -616,7 +616,7 @@ def create_analytics_panel(summary, twin_sync, current_phase):
     fatigue_load = external_analytics.get("fatigue_load")
     conclusions = external_analytics.get("conclusions", [])
 
-    fatigue_percent = risk_value if risk_value is not None else summary["fatigue_risk"]
+    fatigue_percent = (risk_value * 100) if risk_value is not None else summary["fatigue_risk"]
     recovery_hours = recovery_value if recovery_value is not None else summary["recovery_time_h"]
     fatigue_load_value = fatigue_load if fatigue_load is not None else summary["fatigue_load_estimate"]
 
