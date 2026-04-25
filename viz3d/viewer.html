@@ -9,7 +9,7 @@
 <style>
 body{
     margin:0;
-    background:#0b1020;
+    background: linear-gradient(180deg,#081120,#020617);
     color:white;
     font-family:Arial;
 }
@@ -41,11 +41,19 @@ input[type=range]{
 
 <model-viewer
 id="astro"
-src="astronaut.glb"
+src="Astronaut.glb"
 camera-controls
 auto-rotate
 shadow-intensity="1"
-exposure="1"
+exposure="0.92"
+style="
+filter:
+hue-rotate(180deg)
+saturate(1.8)
+brightness(1.08)
+drop-shadow(0 0 20px rgba(0,255,255,.8))
+drop-shadow(0 0 40px rgba(255,0,180,.5));
+"
 ></model-viewer>
 
 <script>
@@ -64,11 +72,11 @@ function updateViewer(hour){
 }
 else if(hour < 24){
     status.innerText = "Microgravity Adaptation";
-    model.style.filter = "hue-rotate(220deg) brightness(1.0)";
+    model.style.filter = "hue-rotate(220deg) brightness(0.88)";
 }
 else if(hour < 42){
     status.innerText = "Operations Block";
-    model.style.filter = "hue-rotate(40deg) brightness(1.02)";
+    model.style.filter = "hue-rotate(40deg) brightness(0.92)";
 }
 else if(hour < 54){
     status.innerText = "Recovery Cycle";
