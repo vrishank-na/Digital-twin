@@ -163,8 +163,11 @@ def apply_eva(df):
 def merge_biogears(df, bg):
 
     bg_small = bg[[
-        "timestamp_h",
-        "biogears_hr_bpm"
+    "timestamp_h",
+    "biogears_hr_bpm",
+    "respiration_rate_bpm",
+    "spo2_pct",
+    "map_mmhg"
     ]].copy()
 
     bg_small["timestamp_h"] = bg_small["timestamp_h"].round(1)

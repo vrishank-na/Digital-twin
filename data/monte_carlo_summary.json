@@ -1,0 +1,13 @@
+{
+  "monte_carlo_runs": 100,
+  "risk_prob_fatigue": 0.25,
+  "risk_prob_motion_sickness": 0.63,
+  "mean_recovery_time_h": 4.04,
+  "p90_recovery_time_h": 5.6,
+  "cumulative_fatigue_load_mean": 638.84,
+  "cumulative_fatigue_load_sd": 192.88,
+  "conclusions": [
+    "Fatigue risk depends on balance between workload and recovery.",
+    "Motion sickness remains an important early-mission uncertainty."
+  ]
+}

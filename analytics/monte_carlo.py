@@ -125,7 +125,7 @@ def monte_carlo(n_runs=100):
 def save_output(summary):
     path = os.path.join(
         DATA_FOLDER,
-        "monte_carlo_summary.json"
+        "analytics_summary.json"
     )
 
     with open(path, "w") as f:

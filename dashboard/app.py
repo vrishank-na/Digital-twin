@@ -239,12 +239,20 @@ def load_biogears_data():
         return pd.DataFrame()
 
     bio = pd.read_csv(BIOGEARS_FILE)
-    required_columns = {"timestamp_h", "heart_rate_bpm"}
-    if not required_columns.issubset(bio.columns):
+
+    if "timestamp_h" not in bio.columns:
         return pd.DataFrame()
+
+    # Accept BioGears column name and normalize it
+    if "heart_rate_bpm" not in bio.columns:
+        if "biogears_hr_bpm" in bio.columns:
+            bio["heart_rate_bpm"] = bio["biogears_hr_bpm"]
+        else:
+            return pd.DataFrame()
 
     bio["timestamp_h"] = pd.to_numeric(bio["timestamp_h"], errors="coerce")
     bio["heart_rate_bpm"] = pd.to_numeric(bio["heart_rate_bpm"], errors="coerce")
+
     return bio.dropna(subset=["timestamp_h", "heart_rate_bpm"]).reset_index(drop=True)
 
 
@@ -718,7 +726,7 @@ def create_analytics_panel(summary, twin_sync, current_phase):
     if team_risk is not None or team_recovery is not None:
         parts = []
         if team_risk is not None:
-            parts.append(f"fatigue risk {team_risk:.0f}%")
+            parts.append(f"fatigue risk {risk_value*100:.0f}%")
         if team_recovery is not None:
             parts.append(f"mean recovery {team_recovery:.1f} h")
         analytics_children.append(
@@ -855,6 +863,9 @@ def create_profile_panel(profile, summary, latest_row, twin_sync, current_phase)
 
 def create_vitals_panel(latest_row):
     respiratory_value = latest_row.get("respiratory_rate_bpm")
+
+    if respiratory_value is None or pd.isna(respiratory_value):
+        respiratory_value = 16.0
     hrv_value = latest_row.get("hrv_proxy")
     cards = [
         {
@@ -1264,6 +1275,9 @@ app.title = "Astronaut Health Digital Twin"
 app.layout = html.Div(
     className="page-shell",
     children=[
+        dcc.Store(id="viewer-sync"),
+        html.Div(id="dummy-output", style={"display": "none"}),
+        html.Div(id="launch-dummy", style={"display": "none"}),
         html.Div(className="page-glow page-glow--left"),
         html.Div(className="page-glow page-glow--right"),
         html.Div(
@@ -1336,19 +1350,47 @@ app.layout = html.Div(
                                 html.Div(
                                     className="slider-shell",
                                     children=[
-                                        dcc.RangeSlider(
+                                        dcc.Slider(
                                             id="slider",
                                             min=time_min,
                                             max=time_max,
-                                            value=[time_min, time_max],
+                                            value=time_min,
                                             marks=make_slider_marks(time_min, time_max),
-                                            allowCross=False,
+                                            step=0.5
                                         )
                                     ],
                                 ),
                                 html.Div(id="window-caption", className="window-caption"),
                             ],
                         ),
+
+                        html.Button(
+                        "🚀 Launch 3D Twin Viewer",
+                        id="launch-viewer",
+                        n_clicks=0,
+                        style={
+                                "display": "inline-block",
+                                "marginTop": "14px",
+                                "padding": "10px 16px",
+                                "backgroundColor": "#2563eb",
+                                "color": "white",
+                                "textDecoration": "none",
+                                "borderRadius": "10px",
+                                "fontWeight": "600"
+                            }
+                        ),
+
+
+
+
+
+
+
+
+
+
+
+
                     ],
                 ),
                 html.Div(id="kpi-cards", className="kpi-grid"),
@@ -1504,11 +1546,20 @@ app.layout = html.Div(
     Output("crew-profile", "children"),
     Output("vitals-panel", "children"),
     Output("alert-feed", "children"),
+    Output("viewer-sync", "data"),
     Input("astronaut", "value"),
     Input("slider", "value"),
 )
+
+
+
+
+
+
+
+
 def update_dashboard(astronaut_id, hours):
-    hours = sorted([float(hours[0]), float(hours[1])])
+    hours = [0, float(hours)]
     filtered_df = filter_for_astronaut(df, astronaut_id)
     filtered_df = filtered_df[
         (filtered_df["timestamp_h"] >= hours[0]) & (filtered_df["timestamp_h"] <= hours[1])
@@ -1540,7 +1591,42 @@ def update_dashboard(astronaut_id, hours):
         create_profile_panel(profile, summary, latest_row, twin_sync, current_phase),
         create_vitals_panel(latest_row),
         create_alert_feed(alerts),
+        hours[1]
     )
+
+app.clientside_callback(
+    """
+    function(n) {
+        if (n > 0) {
+            window.viewerWindow = window.open(
+                "http://localhost:8000/viz3d/viewer.html",
+                "viewerWindow"
+            );
+        }
+        return "";
+    }
+    """,
+    Output("launch-dummy", "children"),
+    Input("launch-viewer", "n_clicks")
+)
+
+app.clientside_callback(
+    """
+    function(hour) {
+        if (window.viewerWindow && !window.viewerWindow.closed) {
+            window.viewerWindow.postMessage(
+                { missionHour: hour },
+                "*"
+            );
+        }
+        return "";
+    }
+    """,
+    Output("dummy-output", "children"),
+    Input("viewer-sync", "data")
+)
+
+
 
 
 if __name__ == "__main__":
