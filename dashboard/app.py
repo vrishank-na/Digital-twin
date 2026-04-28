@@ -556,7 +556,7 @@ def create_kpi_cards(summary, twin_sync):
             "tone": "teal",
         },
         {
-            "label": "Fatigue Risk",
+            "label": "Mission Fatigue Probability",
             "value": f"{((risk_value * 100) if risk_value is not None else summary['fatigue_risk']):.0f}%",
             "note": "From analytics_summary.json" if risk_value is not None else summary["fatigue_direction"].title(),
             "tone": "amber",
@@ -1077,28 +1077,51 @@ def build_heatmap_figure(full_df, hours):
 
 def build_event_figure(filtered_df):
     segments_df = build_event_segments(filtered_df)
+
     if segments_df.empty:
         return empty_figure(
             "Event Gantt Timeline",
             "No active mission events were recorded in this time window.",
         )
 
-    fig = px.timeline(
-        segments_df,
-        x_start="start_h",
-        x_end="end_h",
-        y="event_label",
-        color="event_type",
-        color_discrete_map=EVENT_COLORS,
-        custom_data=["start_h", "end_h"],
-    )
+    fig = go.Figure()
+
+    for _, row in segments_df.iterrows():
+        duration = row["end_h"] - row["start_h"]
+
+        fig.add_trace(
+            go.Bar(
+                x=[duration],
+                y=[row["event_label"]],
+                base=[row["start_h"]],
+                orientation="h",
+                marker_color=EVENT_COLORS.get(row["event_type"], "#94a3b8"),
+                hovertemplate=(
+                    f"{row['event_label']}<br>"
+                    f"Start {row['start_h']:.1f} h<br>"
+                    f"End {row['end_h']:.1f} h"
+                    "<extra></extra>"
+                ),
+                showlegend=False
+            )
+        )
+
     fig = style_chart_figure(fig, "Event Gantt Timeline", height=320)
-    fig.update_layout(showlegend=False)
-    fig.update_xaxes(title_text="Mission time (hours)")
-    fig.update_yaxes(title_text="Event type", autorange="reversed")
-    fig.update_traces(
-        hovertemplate="%{y}<br>Start %{customdata[0]:.1f} h<br>End %{customdata[1]:.1f} h<extra></extra>"
+
+    fig.update_xaxes(
+        title_text="Mission time (hours)",
+        type="linear"
     )
+
+    fig.update_yaxes(
+        title_text="Event type",
+        autorange="reversed"
+    )
+
+    fig.update_layout(
+        barmode="overlay"
+    )
+
     return fig
 
 
