@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import sys
+import xml.etree.ElementTree as ET
 
 import dash
 import numpy as np
@@ -32,6 +33,9 @@ SIMULATION_FILE = DATA_DIR / "simulation_output.json"
 BIOGEARS_FILE = DATA_DIR / "biogears_output.csv"
 ANALYTICS_FILE = DATA_DIR / "analytics_summary.json"
 MONTE_CARLO_FILE = DATA_DIR / "monte_carlo_results.json"
+BIOGEARS_DIR = BASE_DIR / "biogears"
+MICROGRAVITY_SCENARIO_FILE = BIOGEARS_DIR / "microgravity_fast_24h.xml"
+WEEKLY_SCENARIO_FILE = BIOGEARS_DIR / "weekly_nutrition_sleep_exercise.xml"
 
 GRAPH_CONFIG = {
     "displaylogo": False,
@@ -252,8 +256,56 @@ def load_biogears_data():
 
     bio["timestamp_h"] = pd.to_numeric(bio["timestamp_h"], errors="coerce")
     bio["heart_rate_bpm"] = pd.to_numeric(bio["heart_rate_bpm"], errors="coerce")
+    for column in ["map_mmhg", "respiration_rate_bpm", "spo2_pct", "cardiac_output_l_min", "blood_volume_l"]:
+        if column in bio.columns:
+            bio[column] = pd.to_numeric(bio[column], errors="coerce")
 
     return bio.dropna(subset=["timestamp_h", "heart_rate_bpm"]).reset_index(drop=True)
+
+
+def load_scenario_metadata(scenario_path):
+    metadata = {
+        "name": scenario_path.stem,
+        "description": "Scenario metadata unavailable.",
+        "exists": scenario_path.exists(),
+        "environment": "Not declared",
+        "co2_fraction": None,
+        "oxygen_fraction": None,
+        "actions": 0,
+    }
+    if not scenario_path.exists():
+        return metadata
+
+    try:
+        root = ET.parse(scenario_path).getroot()
+    except ET.ParseError:
+        return metadata
+
+    namespace = {"bg": "uri:/mil/tatrc/physiology/datamodel"}
+    name = root.find("bg:Name", namespace)
+    description = root.find("bg:Description", namespace)
+    if name is not None and name.text:
+        metadata["name"] = name.text.strip()
+    if description is not None and description.text:
+        metadata["description"] = description.text.strip()
+
+    metadata["actions"] = len(root.findall(".//bg:Action", namespace))
+    env_name = root.find(".//bg:Condition/bg:Conditions/bg:Name", namespace)
+    if env_name is not None and env_name.text:
+        metadata["environment"] = env_name.text.strip()
+
+    for gas in root.findall(".//bg:AmbientGas", namespace):
+        gas_name = gas.attrib.get("Name", "").lower()
+        fraction = gas.find("bg:FractionAmount", namespace)
+        if fraction is None:
+            continue
+        value = safe_float(fraction.attrib.get("value"))
+        if gas_name == "carbondioxide":
+            metadata["co2_fraction"] = value
+        elif gas_name == "oxygen":
+            metadata["oxygen_fraction"] = value
+
+    return metadata
 
 
 def load_external_analytics():
@@ -1271,6 +1323,180 @@ def build_forecast_figure(filtered_df, forecast_df):
     return fig
 
 
+def build_biogears_figure(bio_filtered, hours):
+    if bio_filtered.empty:
+        return empty_figure(
+            "BioGears Scenario Vitals",
+            "No BioGears CSV is loaded yet. Run the scenario converter to populate data/biogears_output.csv.",
+            height=340,
+        )
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig.add_trace(
+        go.Scatter(
+            x=bio_filtered["timestamp_h"],
+            y=bio_filtered["heart_rate_bpm"],
+            mode="lines",
+            name="Heart Rate",
+            line={"color": METRIC_COLORS["biogears"], "width": 3},
+            hovertemplate="Time %{x:.1f} h<br>HR %{y:.1f} bpm<extra></extra>",
+        ),
+        secondary_y=False,
+    )
+
+    if "map_mmhg" in bio_filtered.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=bio_filtered["timestamp_h"],
+                y=bio_filtered["map_mmhg"],
+                mode="lines",
+                name="MAP",
+                line={"color": METRIC_COLORS["stress"], "width": 2.4},
+                hovertemplate="Time %{x:.1f} h<br>MAP %{y:.1f} mmHg<extra></extra>",
+            ),
+            secondary_y=False,
+        )
+
+    if "respiration_rate_bpm" in bio_filtered.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=bio_filtered["timestamp_h"],
+                y=bio_filtered["respiration_rate_bpm"],
+                mode="lines",
+                name="Respiration",
+                line={"color": METRIC_COLORS["sleep"], "width": 2.4, "dash": "dot"},
+                hovertemplate="Time %{x:.1f} h<br>Respiration %{y:.1f} bpm<extra></extra>",
+            ),
+            secondary_y=True,
+        )
+
+    if "spo2_pct" in bio_filtered.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=bio_filtered["timestamp_h"],
+                y=bio_filtered["spo2_pct"],
+                mode="lines",
+                name="SpO2",
+                line={"color": METRIC_COLORS["fatigue"], "width": 2.2, "dash": "dash"},
+                hovertemplate="Time %{x:.1f} h<br>SpO2 %{y:.1f}%<extra></extra>",
+            ),
+            secondary_y=True,
+        )
+
+    fig = style_chart_figure(fig, "BioGears Scenario Vitals", height=340)
+    fig.update_xaxes(title_text="Mission time (hours)", range=[hours[0], hours[1]])
+    fig.update_yaxes(title_text="HR / MAP", secondary_y=False)
+    fig.update_yaxes(title_text="Respiration / SpO2", secondary_y=True)
+    return fig
+
+
+def create_biogears_panel(bio_filtered, scenario_metadata):
+    if bio_filtered.empty:
+        runtime = "No output"
+        avg_hr = "Pending"
+        avg_map = "Pending"
+        sample_count = "0 samples"
+    else:
+        runtime = f"{bio_filtered['timestamp_h'].min():.1f}-{bio_filtered['timestamp_h'].max():.1f} h"
+        avg_hr = f"{bio_filtered['heart_rate_bpm'].mean():.1f} bpm"
+        avg_map = (
+            f"{bio_filtered['map_mmhg'].mean():.1f} mmHg"
+            if "map_mmhg" in bio_filtered.columns and bio_filtered["map_mmhg"].notna().any()
+            else "Not exported"
+        )
+        sample_count = f"{len(bio_filtered)} samples"
+
+    co2_text = (
+        f"{scenario_metadata['co2_fraction'] * 100:.2f}%"
+        if scenario_metadata.get("co2_fraction") is not None
+        else "Not set"
+    )
+    oxygen_text = (
+        f"{scenario_metadata['oxygen_fraction'] * 100:.1f}%"
+        if scenario_metadata.get("oxygen_fraction") is not None
+        else "Not set"
+    )
+
+    return [
+        html.Div(
+            className="scenario-callout",
+            children=[
+                html.Span("Executable BioGears XML", className="analysis-callout__tag"),
+                html.H3(scenario_metadata["name"], className="analysis-callout__title"),
+                html.P(scenario_metadata["description"], className="analysis-callout__text"),
+            ],
+        ),
+        html.Div(
+            className="analytics-note-grid scenario-note-grid",
+            children=[
+                html.Div(
+                    className="analytics-note",
+                    children=[
+                        html.Span("Scenario file", className="analytics-note__label"),
+                        html.Strong(
+                            "Loaded" if scenario_metadata["exists"] else "Missing",
+                            className="analytics-note__value",
+                        ),
+                    ],
+                ),
+                html.Div(
+                    className="analytics-note",
+                    children=[
+                        html.Span("Output window", className="analytics-note__label"),
+                        html.Strong(runtime, className="analytics-note__value"),
+                    ],
+                ),
+                html.Div(
+                    className="analytics-note",
+                    children=[
+                        html.Span("Cabin analog", className="analytics-note__label"),
+                        html.Strong(scenario_metadata["environment"], className="analytics-note__value"),
+                    ],
+                ),
+                html.Div(
+                    className="analytics-note",
+                    children=[
+                        html.Span("Actions scheduled", className="analytics-note__label"),
+                        html.Strong(str(scenario_metadata["actions"]), className="analytics-note__value"),
+                    ],
+                ),
+                html.Div(
+                    className="analytics-note",
+                    children=[
+                        html.Span("Cabin O2 / CO2", className="analytics-note__label"),
+                        html.Strong(f"{oxygen_text} / {co2_text}", className="analytics-note__value"),
+                    ],
+                ),
+                html.Div(
+                    className="analytics-note",
+                    children=[
+                        html.Span("BioGears samples", className="analytics-note__label"),
+                        html.Strong(sample_count, className="analytics-note__value"),
+                    ],
+                ),
+                html.Div(
+                    className="analytics-note",
+                    children=[
+                        html.Span("Average HR", className="analytics-note__label"),
+                        html.Strong(avg_hr, className="analytics-note__value"),
+                    ],
+                ),
+                html.Div(
+                    className="analytics-note",
+                    children=[
+                        html.Span("Average MAP", className="analytics-note__label"),
+                        html.Strong(avg_map, className="analytics-note__value"),
+                    ],
+                ),
+            ],
+        ),
+        html.P(
+            "Microgravity is represented as a spacecraft-cabin and activity analog because this BioGears schema does not expose a gravity parameter.",
+            className="analytics-footnote",
+        ),
+    ]
+
+
 def build_window_caption(filtered_df, summary, hours, current_phase):
     return (
         f"Viewing {hours[0]:.1f}h to {hours[1]:.1f}h | "
@@ -1284,6 +1510,7 @@ df = load_simulation_data()
 bio_df = load_biogears_data()
 external_analytics = load_external_analytics()
 monte_carlo_results_df = load_monte_carlo_results()
+scenario_metadata = load_scenario_metadata(MICROGRAVITY_SCENARIO_FILE)
 astronaut_ids = sorted(df["astronaut_id"].dropna().unique().tolist(), key=lambda value: str(value))
 if not astronaut_ids:
     astronaut_ids = [1]
@@ -1548,6 +1775,32 @@ app.layout = html.Div(
                         dcc.Graph(id="readiness-graph", config=GRAPH_CONFIG, className="graph-frame"),
                     ],
                 ),
+                html.Section(
+                    className="glass-card analytics-shell biogears-summary-card",
+                    children=[
+                        html.Div(
+                            className="section-heading",
+                            children=[
+                                html.P("BioGears Layer", className="section-kicker"),
+                                html.H2("Mission Scenario and Cabin Analog", className="section-title"),
+                            ],
+                        ),
+                        html.Div(id="biogears-panel", className="analytics-panel scenario-panel"),
+                    ],
+                ),
+                html.Section(
+                    className="glass-card chart-card biogears-vitals-card",
+                    children=[
+                        html.Div(
+                            className="section-heading",
+                            children=[
+                                html.P("BioGears Output", className="section-kicker"),
+                                html.H2("Scenario Vitals", className="section-title"),
+                            ],
+                        ),
+                        dcc.Graph(id="biogears-vitals-graph", config=GRAPH_CONFIG, className="graph-frame"),
+                    ],
+                ),
             ],
         ),
     ],
@@ -1561,8 +1814,10 @@ app.layout = html.Div(
     Output("readiness-graph", "figure"),
     Output("radar-graph", "figure"),
     Output("forecast-graph", "figure"),
+    Output("biogears-vitals-graph", "figure"),
     Output("kpi-cards", "children"),
     Output("analytics-panel", "children"),
+    Output("biogears-panel", "children"),
     Output("status-badges", "children"),
     Output("window-caption", "children"),
     Output("phase-rail", "children"),
@@ -1606,8 +1861,10 @@ def update_dashboard(astronaut_id, hours):
         build_readiness_figure(summary),
         build_radar_figure(summary, latest_row, twin_sync),
         build_forecast_figure(filtered_df, forecast_df),
+        build_biogears_figure(bio_filtered, hours),
         create_kpi_cards(summary, twin_sync),
         create_analytics_panel(summary, twin_sync, current_phase),
+        create_biogears_panel(bio_filtered, scenario_metadata),
         create_status_badges(summary, twin_sync, current_phase),
         build_window_caption(filtered_df, summary, hours, current_phase),
         create_phase_rail(hours, current_phase),

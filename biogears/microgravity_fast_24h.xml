@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scenario xmlns="uri:/mil/tatrc/physiology/datamodel" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" contentVersion="BioGears_6.3.0-beta" xsi:schemaLocation="">
+  <Name>MicrogravityFast24h</Name>
+  <Description>Fast 24-hour spacecraft cabin analog for dashboard runs. Uses the same nutrition, sleep, and exercise structure as the weekly scenario but avoids a full 168-hour BioGears execution.</Description>
+  <InitialParameters>
+    <PatientFile>StandardMale.xml</PatientFile>
+    <Condition xsi:type="InitialEnvironmentData">
+      <Conditions>
+        <Name>SpacecraftCabinAnalog</Name>
+        <SurroundingType>Air</SurroundingType>
+        <AirVelocity value="0.08" unit="m/s"/>
+        <AmbientTemperature value="22.0" unit="degC"/>
+        <AtmosphericPressure value="760.0" unit="mmHg"/>
+        <ClothingResistance value="0.3" unit="clo"/>
+        <Emissivity value="0.9"/>
+        <MeanRadiantTemperature value="22.0" unit="degC"/>
+        <RelativeHumidity value="0.45"/>
+        <RespirationAmbientTemperature value="22.0" unit="degC"/>
+        <AmbientGas Name="Nitrogen">
+          <FractionAmount value="0.785"/>
+        </AmbientGas>
+        <AmbientGas Name="Oxygen">
+          <FractionAmount value="0.210"/>
+        </AmbientGas>
+        <AmbientGas Name="CarbonDioxide">
+          <FractionAmount value="0.005"/>
+        </AmbientGas>
+      </Conditions>
+    </Condition>
+  </InitialParameters>
+
+  <DataRequests SamplesPerSecond="0.0016666667">
+    <DataRequest xsi:type="PatientDataRequestData" Name="Weight" Unit="kg" Precision="1"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="HeartRate" Unit="1/min" Precision="2"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="CardiacOutput" Unit="L/min" Precision="2"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="BloodVolume" Unit="L" Precision="2"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="CentralVenousPressure" Unit="mmHg" Precision="2"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="PulmonaryCapillariesWedgePressure" Unit="mmHg" Precision="2"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="MeanArterialPressure" Unit="mmHg" Precision="1"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="RespirationRate" Unit="1/min" Precision="2"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="OxygenSaturation" Unit="unitless" Precision="3"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="CoreTemperature" Unit="degC" Precision="1"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="TotalMetabolicRate" Unit="kcal/day" Precision="2"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="OxygenConsumptionRate" Unit="mL/min" Precision="3"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="CarbonDioxideProductionRate" Unit="mL/min" Precision="3"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="RespiratoryExchangeRatio" Unit="unitless" Precision="3"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="TotalBodyFluidVolume" Unit="L" Precision="1"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="ExtracellularFluidVolume" Unit="L" Precision="1"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="IntracellularFluidVolume" Unit="L" Precision="1"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="UrineProductionRate" Unit="mL/min" Precision="3"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="GlomerularFiltrationRate" Unit="mL/min" Precision="0"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="TotalWorkRateLevel" Unit="unitless" Precision="2"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="AchievedExerciseLevel" Unit="unitless" Precision="2"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="FatigueLevel" Unit="unitless" Precision="2"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="SleepTime" Unit="s" Precision="1"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="WakeTime" Unit="s" Precision="1"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="BiologicalDebt" Unit="unitless" Precision="6"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="AttentionLapses" Unit="unitless" Precision="1"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="StomachContents-Carbohydrate" Unit="g" Precision="2"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="StomachContents-Fat" Unit="g" Precision="2"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="StomachContents-Protein" Unit="g" Precision="2"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="StomachContents-Water" Unit="mL" Precision="0"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="LiverGlycogen" Unit="g" Precision="2"/>
+    <DataRequest xsi:type="PhysiologyDataRequestData" Name="MuscleGlycogen" Unit="g" Precision="2"/>
+    <DataRequest xsi:type="LiquidCompartmentDataRequestData" Compartment="Aorta" Substance="Glucose" Name="Concentration" Unit="mg/dL" Precision="1"/>
+    <DataRequest xsi:type="LiquidCompartmentDataRequestData" Compartment="VenaCava" Substance="Insulin" Name="Concentration" Unit="ug/L" Precision="3"/>
+    <DataRequest xsi:type="LiquidCompartmentDataRequestData" Compartment="VenaCava" Substance="Glucagon" Name="Concentration" Unit="ug/L" Precision="6"/>
+  </DataRequests>
+
+  <Actions>
+    <Action xsi:type="SleepData" Sleep="On"/>
+    <Action xsi:type="AdvanceTimeData"><Time value="6.5" unit="hr"/></Action>
+    <Action xsi:type="SleepData" Sleep="Off"/>
+
+    <Action xsi:type="AdvanceTimeData"><Time value="1" unit="hr"/></Action>
+    <Action xsi:type="ConsumeNutrientsData">
+      <Nutrition>
+        <Name>Breakfast</Name>
+        <Carbohydrate value="70" unit="g"/>
+        <Fat value="18" unit="g"/>
+        <Protein value="25" unit="g"/>
+        <Calcium value="0.3" unit="g"/>
+        <Sodium value="0.6" unit="g"/>
+        <Water value="0.5" unit="L"/>
+      </Nutrition>
+    </Action>
+
+    <Action xsi:type="AdvanceTimeData"><Time value="5" unit="hr"/></Action>
+    <Action xsi:type="ConsumeNutrientsData">
+      <Nutrition>
+        <Name>Lunch</Name>
+        <Carbohydrate value="95" unit="g"/>
+        <Fat value="28" unit="g"/>
+        <Protein value="35" unit="g"/>
+        <Calcium value="0.35" unit="g"/>
+        <Sodium value="0.9" unit="g"/>
+        <Water value="0.6" unit="L"/>
+      </Nutrition>
+    </Action>
+
+    <Action xsi:type="AdvanceTimeData"><Time value="5.5" unit="hr"/></Action>
+    <Action xsi:type="ExerciseData">
+      <GenericExercise>
+        <Intensity value="0.45"/>
+      </GenericExercise>
+    </Action>
+    <Action xsi:type="AdvanceTimeData"><Time value="45" unit="min"/></Action>
+    <Action xsi:type="ExerciseData">
+      <GenericExercise>
+        <Intensity value="0.0"/>
+      </GenericExercise>
+    </Action>
+
+    <Action xsi:type="AdvanceTimeData"><Time value="15" unit="min"/></Action>
+    <Action xsi:type="ConsumeNutrientsData">
+      <Nutrition>
+        <Name>Dinner</Name>
+        <Carbohydrate value="85" unit="g"/>
+        <Fat value="25" unit="g"/>
+        <Protein value="35" unit="g"/>
+        <Calcium value="0.35" unit="g"/>
+        <Sodium value="0.8" unit="g"/>
+        <Water value="0.6" unit="L"/>
+      </Nutrition>
+    </Action>
+
+    <Action xsi:type="AdvanceTimeData"><Time value="3.5" unit="hr"/></Action>
+    <Action xsi:type="SleepData" Sleep="On"/>
+    <Action xsi:type="AdvanceTimeData"><Time value="1.5" unit="hr"/></Action>
+  </Actions>
+</Scenario>
