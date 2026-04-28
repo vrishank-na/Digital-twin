@@ -17,7 +17,7 @@ EVENT_INTENSITY = {
 
 CREW_TEMPLATES = [
     {
-        "name": "Asha Vega",
+        "name": "Vrishank N A",
         "role": "Mission Commander",
         "specialty": "Flight systems and crew coordination",
         "shift": "Alpha Shift",
