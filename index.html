@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microgravity BioGears Data Visualization</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: white; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 30px; font-size: 2.5em; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); padding: 20px; border-radius: 15px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        .stat-value { font-size: 2em; font-weight: bold; color: #4ade80; }
+        .stat-label { opacity: 0.9; margin-top: 5px; }
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px; }
+        .chart-container { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); padding: 20px; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        canvas { max-height: 400px; }
+        .data-info { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-top: 20px; font-size: 0.9em; }
+        button { background: #4f46e5; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 1em; margin: 10px; transition: background 0.3s; }
+        button:hover { background: #3730a3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Microgravity BioGears Scenario Visualization</h1>
+        <div class="stats-grid" id="stats"></div>
+        <div class="charts-grid">
+            <div class="chart-container">
+                <h3>Heart Rate & MAP Over Time</h3>
+                <canvas id="hrChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>Respiration & SpO2</h3>
+                <canvas id="respChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>Fluid Volumes & Metabolic Rates</h3>
+                <canvas id="fluidChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>Fatigue & Core Temp</h3>
+                <canvas id="fatigueChart"></canvas>
+            </div>
+        </div>
+        <div class="data-info">
+            <strong>Data:</strong> biogears/microgravity_scenarioResults.csv | 
+            <strong>Samples:</strong> <span id="sampleCount">-</span> | 
+            <strong>Duration:</strong> <span id="duration">-</span>h | 
+            <button onclick="downloadCSV()">📥 Download Processed Data</button>
+            <button onclick="toggleDark()">🌙 Toggle Dark Mode</button>
+        </div>
+    </div>
+
+    <script>
+        let data = {};
+        let darkMode = false;
+
+        async function loadData() {
+            try {
+                const response = await fetch('./biogears/microgravity_scenarioResults.csv');
+                const csvText = await response.text();
+                const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true, dynamicTyping: true });
+                
+                if (parsed.errors.length > 0) throw parsed.errors;
+                
+                data = parsed.data;
+                document.getElementById('sampleCount').textContent = data.length;
+                const firstTime = data[0]?.['Time(s)'] / 3600 || 0;
+                const lastTime = data[data.length-1]?.['Time(s)'] / 3600 || 0;
+                document.getElementById('duration').textContent = (lastTime - firstTime).toFixed(1);
+                
+                updateStats();
+                createCharts();
+            } catch (error) {
+                console.error('Load error:', error);
+                alert('Failed to load CSV. Check console.');
+            }
+        }
+
+        function updateStats() {
+            if (data.length === 0) return;
+            
+            const avgHR = data.reduce((sum, row) => sum + (row['HeartRate(1/min)'] || 0), 0) / data.length;
+            const avgMAP = data.reduce((sum, row) => sum + (row['MeanArterialPressure(mmHg)'] || 0), 0) / data.length;
+            const avgRR = data.reduce((sum, row) => sum + (row['RespirationRate(1/min)'] || 0), 0) / data.length;
+            const avgSpO2 = ((data.reduce((sum, row) => sum + (row['OxygenSaturation'] || 0), 0) / data.length) * 100).toFixed(1);
+            const peakFatigue = Math.max(...data.map(row => row['FatigueLevel'] || 0));
+            const avgCoreTemp = data.reduce((sum, row) => sum + (row['CoreTemperature(degC)'] || 0), 0) / data.length;
+
+            document.getElementById('stats').innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${avgHR.toFixed(1)} bpm</div>
+                    <div class="stat-label">Avg Heart Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${avgMAP.toFixed(1)} mmHg</div>
+                    <div class="stat-label">Avg MAP</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${avgRR.toFixed(1)} bpm</div>
+                    <div class="stat-label">Avg Respiration</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${avgSpO2}%</div>
+                    <div class="stat-label">Avg SpO2</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${peakFatigue.toFixed(1)}</div>
+                    <div class="stat-label">Peak Fatigue</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${avgCoreTemp.toFixed(1)}°C</div>
+                    <div class="stat-label">Avg Core Temp</div>
+                </div>
+            `;
+        }
+
+        function createCharts() {
+            const ctx1 = document.getElementById('hrChart').getContext('2d');
+            new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: data.map(row => (row['Time(s)'] / 3600).toFixed(1)),
+                    datasets: [{
+                        label: 'Heart Rate (bpm)',
+                        data: data.map(row => row['HeartRate(1/min)']),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'MAP (mmHg)',
+                        data: data.map(row => row['MeanArterialPressure(mmHg)']),
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        tension: 0.4,
+                        yAxisID: 'y1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { title: { display: true, text: 'Time (hours)' } },
+                        y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Heart Rate (bpm)' } },
+                        y1: { type: 'linear', display: true, position: 'right', title: { display: true, text: 'MAP (mmHg)' }, grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+
+            const ctx2 = document.getElementById('respChart').getContext('2d');
+            new Chart(ctx2, {
+                type: 'line',
+                data: {
+                    labels: data.map(row => (row['Time(s)'] / 3600).toFixed(1)),
+                    datasets: [{
+                        label: 'Respiration Rate (bpm)',
+                        data: data.map(row => row['RespirationRate(1/min)']),
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'SpO2 (%)',
+                        data: data.map(row => ((row['OxygenSaturation'] || 0) * 100)),
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        tension: 0.4,
+                        yAxisID: 'y1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { title: { display: true, text: 'Time (hours)' } },
+                        y: { title: { display: true, text: 'Respiration (bpm)' } },
+                        y1: { position: 'right', title: { display: true, text: 'SpO2 (%)' }, grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+
+            // Additional charts...
+            const ctx3 = document.getElementById('fluidChart').getContext('2d');
+            new Chart(ctx3, {
+                type: 'line',
+                data: {
+                    labels: data.map(row => (row['Time(s)'] / 3600).toFixed(1)),
+                    datasets: [{
+                        label: 'Blood Volume (L)',
+                        data: data.map(row => row['BloodVolume(L)']),
+                        borderColor: '#8b5cf6',
+                        tension: 0.3
+                    }, {
+                        label: 'Total Fluid (L)',
+                        data: data.map(row => row['TotalBodyFluidVolume(L)']),
+                        borderColor: '#06b6d4',
+                        tension: 0.3
+                    }]
+                },
+                options: { responsive: true, scales: { x: { title: { display: true, text: 'Time (hours)' } } } }
+            });
+
+            const ctx4 = document.getElementById('fatigueChart').getContext('2d');
+            new Chart(ctx4, {
+                type: 'line',
+                data: {
+                    labels: data.map(row => (row['Time(s)'] / 3600).toFixed(1)),
+                    datasets: [{
+                        label: 'Fatigue Level',
+                        data: data.map(row => row['FatigueLevel']),
+                        borderColor: '#f97316',
+                        backgroundColor: 'rgba(249, 115, 22, 0.2)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Core Temp (°C)',
+                        data: data.map(row => row['CoreTemperature(degC)']),
+                        borderColor: '#dc2626',
+                        tension: 0.4
+                    }]
+                },
+                options: { responsive: true, scales: { x: { title: { display: true, text: 'Time (hours)' } } } }
+            });
+        }
+
+        function downloadCSV() {
+            if (data.length === 0) return;
+            const processed = data.map(row => ({
+                timestamp_h: (row['Time(s)'] / 3600).toFixed(2),
+                heart_rate_bpm: row['HeartRate(1/min)'],
+                map_mmhg: row['MeanArterialPressure(mmHg)'],
+                spo2_pct: ((row['OxygenSaturation'] || 0) * 100).toFixed(1),
+                respiration_bpm: row['RespirationRate(1/min)'],
+                fatigue: row['FatigueLevel'],
+                core_temp_c: row['CoreTemperature(degC)']
+            }));
+            const csv = Papa.unparse(processed);
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'microgravity_processed.csv';
+            a.click();
+        }
+
+        function toggleDark() {
+            darkMode = !darkMode;
+            document.body.style.background = darkMode ? '#1e1b4b' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+        }
+
+        // Load data on page load
+        window.onload = loadData;
+    </script>
+</body>
+</html>

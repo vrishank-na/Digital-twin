@@ -25,16 +25,17 @@ from dashboard_support import (
     build_twin_sync,
     enrich_simulation_data,
     get_phase_for_window,
+    load_biogears_microgravity_scenario,
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 SIMULATION_FILE = DATA_DIR / "simulation_output.json"
-BIOGEARS_FILE = DATA_DIR / "biogears_output.csv"
 ANALYTICS_FILE = DATA_DIR / "analytics_summary.json"
 MONTE_CARLO_FILE = DATA_DIR / "monte_carlo_results.json"
 BIOGEARS_DIR = BASE_DIR / "biogears"
 MICROGRAVITY_SCENARIO_FILE = BIOGEARS_DIR / "microgravity_fast_24h.xml"
+MICROGRAVITY_RESULTS_FILE = BIOGEARS_DIR / "microgravity_scenarioResults.csv"
 WEEKLY_SCENARIO_FILE = BIOGEARS_DIR / "weekly_nutrition_sleep_exercise.xml"
 
 GRAPH_CONFIG = {
@@ -239,28 +240,11 @@ def load_simulation_data():
 
 
 def load_biogears_data():
-    if not BIOGEARS_FILE.exists():
-        return pd.DataFrame()
-
-    bio = pd.read_csv(BIOGEARS_FILE)
-
-    if "timestamp_h" not in bio.columns:
-        return pd.DataFrame()
-
-    # Accept BioGears column name and normalize it
-    if "heart_rate_bpm" not in bio.columns:
-        if "biogears_hr_bpm" in bio.columns:
-            bio["heart_rate_bpm"] = bio["biogears_hr_bpm"]
-        else:
-            return pd.DataFrame()
-
-    bio["timestamp_h"] = pd.to_numeric(bio["timestamp_h"], errors="coerce")
-    bio["heart_rate_bpm"] = pd.to_numeric(bio["heart_rate_bpm"], errors="coerce")
-    for column in ["map_mmhg", "respiration_rate_bpm", "spo2_pct", "cardiac_output_l_min", "blood_volume_l"]:
-        if column in bio.columns:
-            bio[column] = pd.to_numeric(bio[column], errors="coerce")
-
-    return bio.dropna(subset=["timestamp_h", "heart_rate_bpm"]).reset_index(drop=True)
+    """Load BioGears data exclusively from microgravity scenario results."""
+    if MICROGRAVITY_RESULTS_FILE.exists():
+        bio = load_biogears_microgravity_scenario(MICROGRAVITY_RESULTS_FILE)
+        return bio
+    return pd.DataFrame()
 
 
 def load_scenario_metadata(scenario_path):
@@ -1326,8 +1310,8 @@ def build_forecast_figure(filtered_df, forecast_df):
 def build_biogears_figure(bio_filtered, hours):
     if bio_filtered.empty:
         return empty_figure(
-            "BioGears Scenario Vitals",
-            "No BioGears CSV is loaded yet. Run the scenario converter to populate data/biogears_output.csv.",
+            "BioGears Microgravity Vitals",
+            "No microgravity scenario results found at biogears/microgravity_scenarioResults.csv.",
             height=340,
         )
 

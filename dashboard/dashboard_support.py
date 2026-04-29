@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Dict, List
 
 import numpy as np
@@ -384,3 +385,140 @@ def build_forecast_frame(filtered_df: pd.DataFrame, hours: List[float]) -> pd.Da
             "readiness_forecast": readiness_forecast,
         }
     )
+
+
+def load_biogears_microgravity_scenario(csv_path: Path | str) -> pd.DataFrame:
+    """
+    Load and process BioGEARS microgravity scenario results CSV.
+    
+    Converts raw BioGEARS output (with Time in seconds and specific column names)
+    to the standardized dashboard format with timestamp_h and dashboard-expected columns.
+    
+    Args:
+        csv_path: Path to microgravity_scenarioResults.csv
+        
+    Returns:
+        Processed DataFrame with columns suitable for the dashboard
+    """
+    csv_path = Path(csv_path)
+    if not csv_path.exists():
+        return pd.DataFrame()
+    
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception:
+        return pd.DataFrame()
+    
+    # Convert Time(s) to timestamp_h (hours)
+    if "Time(s)" in df.columns:
+        df["timestamp_h"] = df["Time(s)"] / 3600.0
+    elif "timestamp_h" not in df.columns:
+        return pd.DataFrame()
+    
+    # Map BioGEARS columns to dashboard expected columns
+    column_mapping = {
+        "HeartRate(1/min)": "heart_rate_bpm",
+        "RespirationRate(1/min)": "respiratory_rate_bpm",
+        "FatigueLevel": "fatigue_index",
+        "OxygenSaturation": "oxygen_saturation_pct",
+        "CoreTemperature(degC)": "core_temp_c",
+        "CardiacOutput(L/min)": "cardiac_output_l_min",
+        "BloodVolume(L)": "blood_volume_l",
+        "CentralVenousPressure(mmHg)": "central_venous_pressure_mmhg",
+        "PulmonaryCapillariesWedgePressure(mmHg)": "pulmonary_cap_wedge_pressure_mmhg",
+        "MeanArterialPressure(mmHg)": "map_mmhg",
+        "TotalBodyFluidVolume(L)": "total_body_fluid_l",
+        "ExtracellularFluidVolume(L)": "extracellular_fluid_l",
+        "IntracellularFluidVolume(L)": "intracellular_fluid_l",
+        "UrineProductionRate(mL/min)": "urine_production_ml_min",
+        "GlomerularFiltrationRate(mL/min)": "glomerular_filtration_ml_min",
+        "TotalMetabolicRate(kcal/day)": "total_metabolic_rate_kcal_day",
+        "OxygenConsumptionRate(mL/min)": "o2_consumption_ml_min",
+        "CarbonDioxideProductionRate(mL/min)": "co2_production_ml_min",
+        "RespiratoryExchangeRatio": "respiratory_exchange_ratio",
+    }
+    
+    # Apply column mapping
+    for biogears_col, dashboard_col in column_mapping.items():
+        if biogears_col in df.columns:
+            df[dashboard_col] = pd.to_numeric(df[biogears_col], errors="coerce")
+    
+    # Ensure core columns exist and are numeric
+    required_numeric = ["timestamp_h", "heart_rate_bpm", "respiratory_rate_bpm"]
+    for col in required_numeric:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+        else:
+            return pd.DataFrame()
+    
+    # Generate derived columns if missing
+    if "biogears_hr_bpm" not in df.columns:
+        df["biogears_hr_bpm"] = df["heart_rate_bpm"].copy()
+    
+    # Sleep quality derived from sleep time if available
+    if "sleep_quality" not in df.columns:
+        if "SleepTime(s)" in df.columns:
+            sleep_hours = df["SleepTime(s)"] / 3600.0
+            df["sleep_quality"] = np.clip(2.0 + sleep_hours * 0.8, 2.0, 9.8)
+        else:
+            df["sleep_quality"] = 6.5
+    
+    # Fatigue index normalization
+    if "fatigue_index" in df.columns:
+        # Normalize to 1-9 scale if necessary
+        df["fatigue_index"] = pd.to_numeric(df["fatigue_index"], errors="coerce")
+        if df["fatigue_index"].max() > 10:
+            df["fatigue_index"] = df["fatigue_index"] / 10.0
+        df["fatigue_index"] = np.clip(df["fatigue_index"], 1.0, 9.0)
+    else:
+        df["fatigue_index"] = 5.0
+    
+    # Oxygen saturation (convert to percentage if in decimal form)
+    if "oxygen_saturation_pct" in df.columns:
+        df["oxygen_saturation_pct"] = pd.to_numeric(df["oxygen_saturation_pct"], errors="coerce")
+        if not df["oxygen_saturation_pct"].empty and df["oxygen_saturation_pct"].max() <= 1.5:
+            df["oxygen_saturation_pct"] *= 100.0
+        df["oxygen_saturation_pct"] = np.clip(df["oxygen_saturation_pct"], 90.0, 100.0)
+    else:
+        df["oxygen_saturation_pct"] = 97.0
+    
+    # Event columns
+    if "event_active" not in df.columns:
+        df["event_active"] = False
+    
+    if "event_type" not in df.columns:
+        df["event_type"] = "none"
+    
+    if "at_risk" not in df.columns:
+        # Derive at-risk from physiological thresholds
+        df["at_risk"] = (
+            (df["fatigue_index"] >= 7.0) |
+            (df["sleep_quality"] <= 4.2) |
+            (df["oxygen_saturation_pct"] < 93.0)
+        )
+    
+    # Add astronaut_id if missing (default to 1)
+    if "astronaut_id" not in df.columns:
+        df["astronaut_id"] = 1
+    
+    # Derived columns for dashboard
+    if "hrv_proxy" not in df.columns:
+        df["hrv_proxy"] = np.clip(
+            62 - df["fatigue_index"] * 3.4 + df["sleep_quality"] * 1.3,
+            18, 84
+        )
+    
+    if "recovery_time_h" not in df.columns:
+        df["recovery_time_h"] = np.clip(
+            df["fatigue_index"] * 1.25 + max(0.0, 6.0 - df["sleep_quality"].min()) * 1.4,
+            2.0, 20.0
+        )
+    
+    if "peak_fatigue" not in df.columns:
+        df["peak_fatigue"] = df["fatigue_index"].max() if not df["fatigue_index"].empty else 5.0
+    
+    # Drop NaN rows in critical columns
+    df = df.dropna(subset=["timestamp_h", "heart_rate_bpm"])
+    df = df.sort_values("timestamp_h").reset_index(drop=True)
+    
+    return df
